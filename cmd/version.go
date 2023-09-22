@@ -57,7 +57,6 @@ func runVersion(format string) {
 	if err != nil {
 		fmt.Printf("Error reading VERSION file. %v", err)
 	}
-	fmt.Println(string(CUR_VER))
 	v := types.NewVersionFromString(string(CUR_VER))
 	switch strings.ToLower(format) {
 	case "string":

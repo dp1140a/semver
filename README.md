@@ -9,7 +9,7 @@ I wrote this cause it follows how I like to use these tools: less flags and more
 If you already have golang installed you can install by running the command:
 
 ```sh
-go install github.com/dp1140a/semver/cmd/semver@latest
+go install github.com/dp1140a/semver@latest
 ```
 
 ### check install
@@ -146,8 +146,8 @@ $semver version 4.5.6 --> 4.5.6
 $semver versiion 1.0.0-beta+exp.sha.5114f85 --> 1.0.0-beta+exp.sha.5114f85
 
 Usage:
-```s
-emver set [new-version]
+```
+semver set [new-version]
 semver set [command]
 ```
 
