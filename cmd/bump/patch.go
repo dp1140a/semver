@@ -25,7 +25,7 @@ Bumping will reset all lower order versions to 0 and remove build or pre-release
    $ semver bump patch --> 1.2.4
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("patch called")
+		runBumpPatch()
 	},
 }
 
