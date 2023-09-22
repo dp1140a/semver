@@ -25,6 +25,7 @@ func ValidVersionString(version string) bool {
 }
 
 func WriteVersionFile(version string) error {
+	fmt.Println("Writing VERSION file")
 	err := os.WriteFile("VERSION", []byte(version), 0644)
 	if err != nil {
 		return err

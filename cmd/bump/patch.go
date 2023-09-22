@@ -49,10 +49,15 @@ func runBumpPatch() {
 	fmt.Println("Bumping Patch")
 	v.IncrementPatch()
 	fmt.Printf("New Version: %v\n", v.String())
-	err = util.WriteVersionFile(v.String())
-	if err != nil {
-		fmt.Printf("Error writing VERSION file: %v. Exiting", err)
-		os.Exit(-1)
+	if DryRun {
+		os.Exit(0)
+	} else {
+		err = util.WriteVersionFile(v.String())
+		if err != nil {
+			fmt.Printf("Error writing VERSION file: %v. Exiting", err)
+			os.Exit(-1)
+		}
+		os.Exit(0)
 	}
-	os.Exit(0)
+
 }

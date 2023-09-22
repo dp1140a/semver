@@ -50,10 +50,9 @@ func setVersion(ver string) {
 	if err != nil {
 		fmt.Printf("Error reading VERSION file. %v", err)
 	}
-	v := types.NewVersionFromString(string(CUR_VER))
-	fmt.Printf("Current Version: %v\n", v.String())
+	fmt.Printf("Current Version: %v\n", string(CUR_VER))
 	fmt.Println("Setting Version")
-	v = types.NewVersionFromString(ver)
+	v := types.NewVersionFromString(ver)
 	fmt.Printf("New Version: %v\n", v.String())
 	err = util.WriteVersionFile(v.String())
 	if err != nil {

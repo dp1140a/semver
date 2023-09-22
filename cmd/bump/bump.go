@@ -9,10 +9,13 @@ import (
 )
 
 // bumpCmd represents the bump command
-var BumpCmd = &cobra.Command{
-	Use:   "bump",
-	Short: "Will bump the current version",
-	Long: `If no subcommand is specified this command will bump the Patch version.  For example if our current version is 0.1.0:
+var (
+	DryRun bool
+
+	BumpCmd = &cobra.Command{
+		Use:   "bump",
+		Short: "Will bump the current version",
+		Long: `If no subcommand is specified this command will bump the Patch version.  For example if our current version is 0.1.0:
 
    $ semver bump --> 0.1.1 
    Is the same as
@@ -25,16 +28,18 @@ Bumping will reset all lower order versions to 0 and remove build or pre-release
    $ semver bump patch --> 1.2.4
 
 `,
-	Run: func(cmd *cobra.Command, args []string) {
-		//cmd.Help()
-		runBump()
-	},
-}
+		Run: func(cmd *cobra.Command, args []string) {
+			runBump()
+		},
+	}
+)
 
 var CUR_VER []byte
 
 func init() {
 	cmd.RootCmd.AddCommand(BumpCmd)
+	BumpCmd.PersistentFlags().BoolVarP(&DryRun, "dry", "d", false, "Shows what the next version will be.  Will not write VERSION file")
+
 }
 
 func runBump() {
