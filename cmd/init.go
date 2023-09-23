@@ -49,9 +49,14 @@ func runInit() {
 	Check if VERSION file exists
 	*/
 	if util.VersionFileExists(cwd) { // If file exists ask to overwrite
+
 		fmt.Printf("VERSION fle was found do you want to overwrite it [Y/n]?")
 		overwrite, _ := reader.ReadString('\n')
 		overwrite = strings.TrimSuffix(overwrite, "\n")
+		if overwrite == "" {
+			overwrite = "y"
+		}
+		fmt.Println(overwrite)
 		if strings.ToLower(overwrite) == "y" {
 			fmt.Println("Overwriting VERSION file.  Continuing . . . ")
 		} else if strings.ToLower(overwrite) == "n" {
