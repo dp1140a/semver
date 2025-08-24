@@ -15,7 +15,7 @@ OSARCHS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 
 # Build flags (override to inject version vars if you have them)
 LDFLAGS ?= -s -w
-GOFLAGS ?= -trimpath -buildvcs=false
+GOFLAGS ?= -trimpath -buildvcs=true
 CGO_ENABLED ?= 0
 
 .PHONY: all deps fmt vet test clean ensure_gox build dist checksum release debug
