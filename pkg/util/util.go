@@ -1,7 +1,7 @@
 package util
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,12 +27,8 @@ func ValidVersionString(version string) bool {
 }
 
 func WriteVersionFile(version string) error {
-	fmt.Println("Writing VERSION file")
-	err := os.WriteFile("VERSION", []byte(version), 0644)
-	if err != nil {
-		return err
-	}
-	return nil
+	// remove the println; add newline; or just migrate callers to cli.WriteVersion
+	return os.WriteFile("VERSION", []byte(version+"\n"), 0644)
 }
 
 func VersionFileExists(cwd string) bool {
@@ -44,12 +40,12 @@ func VersionFileExists(cwd string) bool {
 	}
 }
 
-func InGitDir(cwd string) {
-	//Look for .git directory.  If not exit
+func InGitDir(cwd string) error {
 	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println(NOT_GIT_MSG)
-			os.Exit(0)
+			return errors.New(NOT_GIT_MSG)
 		}
+		return err
 	}
+	return nil
 }

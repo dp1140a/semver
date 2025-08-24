@@ -1,6 +1,3 @@
-/*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-*/
 package set
 
 import (
@@ -9,55 +6,54 @@ import (
 	"strings"
 
 	"github.com/dp1140a/semver/cmd"
-	"github.com/dp1140a/semver/types"
-	"github.com/dp1140a/semver/util"
+	"github.com/dp1140a/semver/pkg/cli"
+	"github.com/dp1140a/semver/pkg/types"
 	"github.com/spf13/cobra"
 )
 
-// setCmd represents the set command
 var SetCmd = &cobra.Command{
-	Use:   "set [new-version]",
+	Use:   "set <version>",
+	Short: "Set the full semantic version",
+	Long:  "Set the semantic version in the VERSION file (e.g., 1.2.3 or 1.2.3-rc.1+build.5).",
 	Args:  cobra.ExactArgs(1),
-	Short: "sets the version, build, or pre-release values",
-	Long: `By itself (with no subcommand) the set command will set the version to the passed in argument.  For example if our current version is 1.2.3:
-   $semver version 4.5.6 --> 4.5.6
-   $semver versiion 1.0.0-beta+exp.sha.5114f85 --> 1.0.0-beta+exp.sha.5114f85
-`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ver := ""
-		if len(args) == 1 {
-			ver = args[0]
-		}
-
-		ver = strings.TrimSuffix(ver, "\n")
-		strings.TrimSpace(ver)
-		setVersion(ver)
+	RunE: func(c *cobra.Command, args []string) error {
+		verArg := strings.TrimSpace(args[0])
+		return runSetVersion(c, verArg)
 	},
 }
 
 func init() {
 	cmd.RootCmd.AddCommand(SetCmd)
+	SetCmd.PersistentFlags().BoolP(
+		"dry", "d", false,
+		"Show what the new version would be; do not write VERSION",
+	)
 }
 
-func setVersion(ver string) {
+func runSetVersion(cmd *cobra.Command, verArg string) error {
+	dry, _ := cmd.Flags().GetBool("dry")
+
 	cwd, _ := os.Getwd()
-	if !util.VersionFileExists(cwd) {
-		fmt.Printf("No VERSION file found in %v.\nPlease either change directory or first run 'semver init'\n", cwd)
-		os.Exit(0)
+	cur, err := cli.ReadVersion()
+	if err != nil {
+		return err
+	}
+	if cur == "" {
+		cli.PrintNoVersionMsg(cwd)
+		return nil
 	}
 
-	CUR_VER, err := os.ReadFile("VERSION")
-	if err != nil {
-		fmt.Printf("Error reading VERSION file. %v", err)
-	}
-	fmt.Printf("Current Version: %v\n", string(CUR_VER))
+	fmt.Printf("Current Version: %s\n", cur)
 	fmt.Println("Setting Version")
-	v := types.NewVersionFromString(ver)
-	fmt.Printf("New Version: %v\n", v.String())
-	err = util.WriteVersionFile(v.String())
-	if err != nil {
-		fmt.Printf("Error writing VERSION file: %v. Exiting", err)
-		os.Exit(-1)
+
+	v := types.NewVersionFromString(verArg)
+	next := v.String()
+
+	if dry {
+		cli.RenderDry(next)
+		return nil
 	}
-	os.Exit(0)
+
+	fmt.Printf("New Version: %s\n", next)
+	return cli.WriteVersion(next)
 }

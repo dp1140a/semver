@@ -4,8 +4,12 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
+	"github.com/dp1140a/semver/pkg/types"
+	"github.com/dp1140a/semver/pkg/util"
 	"github.com/spf13/cobra"
 )
 
@@ -15,11 +19,6 @@ var RootCmd = &cobra.Command{
 	Short: "A semantic versioning tool",
 	Long: `Run by itself semver will return the current version string. For example if the current version is 1.2.3:
    $ semver --> 1.2.3
-
-This is equivalent to running
-
-   $ semver version
-   $ semver version -f string
 `,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
@@ -36,6 +35,33 @@ func Execute() {
 		os.Exit(1)
 	}
 
+}
+
+func runVersion(format string) {
+	cwd, _ := os.Getwd()
+	if !util.VersionFileExists(cwd) {
+		fmt.Printf("No VERSION file found in %v.\nPlease either change directory or first run 'semver init'\n", cwd)
+		os.Exit(0)
+	}
+
+	CUR_VER, err := os.ReadFile("VERSION")
+	if err != nil {
+		fmt.Printf("Error reading VERSION file. %v", err)
+	}
+
+	versionStr := strings.TrimSpace(string(CUR_VER)) // <-- key fix
+	v := types.NewVersionFromString(versionStr)
+
+	switch strings.ToLower(format) {
+	case "string":
+		fmt.Println(v.String())
+	case "json":
+		fmt.Println(v.Json())
+	case "pretty":
+		fmt.Println(v.PrettyPrint())
+	default:
+		fmt.Printf("%v is an unknown format. Optons are [string | json | pretty]\n\n", format)
+	}
 }
 
 func init() {}

@@ -1,80 +1,84 @@
-/*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-*/
 package set
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
-	"github.com/dp1140a/semver/types"
-	"github.com/dp1140a/semver/util"
+	"github.com/dp1140a/semver/pkg/cli"
+	"github.com/dp1140a/semver/pkg/types"
 	"github.com/spf13/cobra"
 )
 
-// buildCmd represents the build command
 var buildCmd = &cobra.Command{
-	Use:   "build [(optional) build value]",
-	Args:  cobra.MaximumNArgs(1),
-	Short: "Set Version Build information",
-	Long: `Will set the build on a version.  For example if the current version is 1.2.3:
+	Use:   "build",
+	Short: "Set or clear the build metadata",
+	Long:  "Set the build metadata (e.g., build.42). Use --git to derive from git, or --clear to remove it.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// flags (read per-call; no globals)
+		dry, _ := cmd.Flags().GetBool("dry")
+		val, _ := cmd.Flags().GetString("value")
+		useGit, _ := cmd.Flags().GetBool("git")
+		clear, _ := cmd.Flags().GetBool("clear")
 
-   $ semver set build mybuild-123 --> 1.2.3+mybuild-123
-
-If no build string argument is given it will set the build to the short version of the current git HEAD hash.
-This is equivalent to setting the build to the output of:
-
-   $ git rev-parse --short HEAD
-
-For example if the current version is 1.2.3:
-
-  $ semver set build --> 1.2.3+b113571 (if that was the current hash)
-`,
-	Run: func(cmd *cobra.Command, args []string) {
-		build := ""
-		if len(args) == 1 {
-			build = args[0]
+		// exactly one of --value, --git, --clear
+		count := 0
+		if val != "" {
+			count++
+		}
+		if useGit {
+			count++
+		}
+		if clear {
+			count++
+		}
+		if count != 1 {
+			return fmt.Errorf("exactly one of --value, --git, or --clear must be provided")
 		}
 
-		setBuild(build)
+		cwd, _ := os.Getwd()
+		cur, err := cli.ReadVersion()
+		if err != nil {
+			return err
+		}
+		if cur == "" {
+			cli.PrintNoVersionMsg(cwd)
+			return nil
+		}
+
+		fmt.Printf("Current Version: %s\n", cur)
+		fmt.Println("Setting Build Metadata")
+
+		v := types.NewVersionFromString(strings.TrimSpace(cur))
+
+		switch {
+		case clear:
+			v.SetBuild("")
+		case useGit:
+			out, err := exec.Command("git", "rev-parse", "--short", "HEAD").CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("error getting git build info: %w", err)
+			}
+			v.SetBuild(strings.TrimSpace(string(out)))
+		default:
+			v.SetBuild(val)
+		}
+
+		next := v.String()
+		if dry {
+			cli.RenderDry(next)
+			return nil
+		}
+
+		fmt.Printf("New Version: %s\n", next)
+		return cli.WriteVersion(next)
 	},
 }
 
 func init() {
 	SetCmd.AddCommand(buildCmd)
-}
-
-func setBuild(build string) {
-	cwd, _ := os.Getwd()
-	if !util.VersionFileExists(cwd) {
-		fmt.Printf("No VERSION file found in %v.\nPlease either change directory or first run 'semver init'\n", cwd)
-		os.Exit(0)
-	}
-
-	CUR_VER, err := os.ReadFile("VERSION")
-	if err != nil {
-		fmt.Printf("Error reading VERSION file. %v", err)
-	}
-	v := types.NewVersionFromString(string(CUR_VER))
-	fmt.Printf("Current Version: %v\n", v.String())
-	fmt.Println("Setting Build")
-	if build == "" {
-		cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
-		bytes, err := cmd.Output()
-		if err != nil {
-			fmt.Printf("Error getting git build info: %v", err)
-			os.Exit(-1)
-		}
-		build = string(bytes)
-	}
-
-	v.SetBuild(build)
-	fmt.Printf("New Version: %v\n", v.String())
-	err = util.WriteVersionFile(v.String())
-	if err != nil {
-		fmt.Printf("Error writing VERSION file: %v. Exiting", err)
-		os.Exit(-1)
-	}
-	os.Exit(0)
+	buildCmd.Flags().String("value", "", "Build metadata to set (e.g., build.42)")
+	buildCmd.Flags().Bool("git", false, "Use git rev-parse --short HEAD for build metadata")
+	buildCmd.Flags().Bool("clear", false, "Clear the build metadata")
 }
