@@ -1,6 +1,6 @@
 module github.com/dp1140a/semver
 
-go 1.21.1
+go 1.25
 
 require (
 	github.com/spf13/cobra v1.9.1
