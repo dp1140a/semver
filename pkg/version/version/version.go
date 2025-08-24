@@ -24,9 +24,9 @@ var (
 type VersionInfo struct {
 	AppName   string `json:"appName"`
 	Version   string `json:"version"`
-	Branch    string `json:"branch"`
-	Commit    string `json:"commit"`
-	BuildTime string `json:"buildTime"`
+	Branch    string `json:"branch,omitempty"`
+	Commit    string `json:"commit,omitempty"`
+	BuildTime string `json:"buildTime,omitempty"`
 	Dirty     bool   `json:"dirty"`
 	GoVersion string `json:"goVersion"`
 	GOOS      string `json:"goos"`
