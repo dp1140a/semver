@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
-	"github.com/dp1140a/semver/util"
+	"github.com/dp1140a/semver/pkg/util"
 )
 
 type Version struct {
@@ -26,25 +27,27 @@ func NewVersion() Version {
 	}
 }
 
+var semverRE = regexp.MustCompile(util.SemVerRegex)
+
 func NewVersionFromString(version string) Version {
-	re := regexp.MustCompile(util.SemVerRegex)
-
-	// Find submatches in the SemVer string
-	matches := re.FindStringSubmatch(version)
-
-	if matches == nil {
-		fmt.Println("Invalid Semantic Version")
-		return Version{}
+	s := strings.TrimSpace(version)
+	if len(s) > 0 && (s[0] == 'v' || s[0] == 'V') {
+		s = s[1:]
 	}
-
-	// Create a SemanticVersion struct and parse the values
+	matches := semverRE.FindStringSubmatch(s)
+	if matches == nil {
+		return Version{} // no fmt.Println side-effect
+	}
 	semver := Version{}
 	semver.Major = parseInt(matches[1])
 	semver.Minor = parseInt(matches[2])
 	semver.Patch = parseInt(matches[3])
-	semver.PreRelease = matches[4]
-	semver.Build = matches[5]
-
+	if len(matches) > 4 {
+		semver.PreRelease = matches[4]
+	}
+	if len(matches) > 5 {
+		semver.Build = matches[5]
+	}
 	return semver
 }
 

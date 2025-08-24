@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dp1140a/semver/util"
+	"github.com/dp1140a/semver/pkg/util"
 	"github.com/spf13/cobra"
 )
 
@@ -103,5 +103,4 @@ func runInit() {
 		fmt.Printf("Error writing VERSION file: %v. Exiting", err)
 		os.Exit(-1)
 	}
-	os.Exit(0)
 }
