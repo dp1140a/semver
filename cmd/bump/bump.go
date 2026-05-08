@@ -17,12 +17,14 @@ const (
 	bumpPatch bumpKind = iota
 	bumpMinor
 	bumpMajor
+	bumpPre
+	bumpBuild
 )
 
 var BumpCmd = &cobra.Command{
 	Use:   "bump",
 	Short: "Bump the version (default: patch)",
-	Long:  "Bump the semantic version in the VERSION file. Defaults to a patch bump if no subcommand is provided.",
+	Long:  "Bump the semantic version in the VERSION file. Defaults to a patch bump if no subcommand is provided. The existing VERSION file's optional leading v/V prefix is preserved. Prerelease stage promotion remains explicit via set pre.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// default to patch when no subcommand is specified
 		return runBump(cmd, bumpPatch)
@@ -42,6 +44,8 @@ func init() {
 	BumpCmd.AddCommand(newBumpSubCmd("patch", "Bump patch version", bumpPatch))
 	BumpCmd.AddCommand(newBumpSubCmd("minor", "Bump minor version", bumpMinor))
 	BumpCmd.AddCommand(newBumpSubCmd("major", "Bump major version", bumpMajor))
+	BumpCmd.AddCommand(newBumpSubCmd("pre", "Bump prerelease version", bumpPre))
+	BumpCmd.AddCommand(newBumpSubCmd("build", "Bump build metadata", bumpBuild))
 }
 
 func newBumpSubCmd(name, desc string, kind bumpKind) *cobra.Command {
@@ -69,7 +73,10 @@ func runBump(cmd *cobra.Command, kind bumpKind) error {
 
 	fmt.Printf("Current Version: %s\n", cur)
 
-	v := types.NewVersionFromString(strings.TrimSpace(cur))
+	v, err := types.ParseVersion(strings.TrimSpace(cur))
+	if err != nil {
+		return fmt.Errorf("invalid VERSION contents %q", cur)
+	}
 
 	switch kind {
 	case bumpPatch:
@@ -81,6 +88,14 @@ func runBump(cmd *cobra.Command, kind bumpKind) error {
 	case bumpMajor:
 		fmt.Println("Bumping Major")
 		v.IncrementMajor()
+	case bumpPre:
+		fmt.Println("Bumping Prerelease")
+		v.IncrementPre()
+	case bumpBuild:
+		fmt.Println("Bumping Build Metadata")
+		if err := v.IncrementBuild(); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown bump kind: %v", kind)
 	}

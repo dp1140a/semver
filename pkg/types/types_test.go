@@ -30,6 +30,9 @@ func TestNewVersionFromString_WithLeadingV(t *testing.T) {
 	if v.Major != 2 || v.Minor != 0 || v.Patch != 1 {
 		t.Fatalf("expected 2.0.1 from v2.0.1, got: %+v", v)
 	}
+	if got := v.String(); got != "v2.0.1" {
+		t.Fatalf("expected prefix preserved in rendering, got %q", got)
+	}
 }
 
 func TestNewVersionFromString_PreReleaseAndBuild(t *testing.T) {
@@ -50,6 +53,39 @@ func TestNewVersionFromString_Invalid(t *testing.T) {
 	// Zero-value expected on parse failure
 	if v.Major != 0 || v.Minor != 0 || v.Patch != 0 || v.PreRelease != "" || v.Build != "" {
 		t.Fatalf("expected zero value on invalid parse, got: %+v", v)
+	}
+}
+
+func TestParseVersion_Invalid(t *testing.T) {
+	if _, err := ParseVersion("1.2.3-01"); err == nil {
+		t.Fatal("expected parse error for invalid prerelease numeric identifier")
+	}
+}
+
+func TestParseVersion_PrefixOptional(t *testing.T) {
+	tests := []struct {
+		input  string
+		prefix string
+		want   string
+	}{
+		{"1.0.0-rc.1", "", "1.0.0-rc.1"},
+		{"v1.0.0-rc.1", "v", "v1.0.0-rc.1"},
+		{"V1.0.0-beta.2", "V", "V1.0.0-beta.2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			v, err := ParseVersion(tt.input)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			if v.Prefix() != tt.prefix {
+				t.Fatalf("expected prefix %q, got %q", tt.prefix, v.Prefix())
+			}
+			if got := v.String(); got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
 	}
 }
 
@@ -108,6 +144,39 @@ func TestIncrementPatch_IncrementsOnlyPatchAndClearsSuffixes(t *testing.T) {
 	}
 	if v.PreRelease != "" || v.Build != "" {
 		t.Fatalf("expected suffixes cleared on patch bump, got pre=%q build=%q", v.PreRelease, v.Build)
+	}
+}
+
+func TestIncrementPre_StartsAlpha1WhenMissing(t *testing.T) {
+	v := Version{Major: 1, Minor: 0, Patch: 1}
+	v.IncrementPre()
+	if got := v.String(); got != "1.0.1-alpha.1" {
+		t.Fatalf("expected 1.0.1-alpha.1, got %q", got)
+	}
+}
+
+func TestIncrementPre_IncrementsNumericSuffix(t *testing.T) {
+	v := Version{Major: 1, Minor: 0, Patch: 1, PreRelease: "beta.2", Build: "ci.7"}
+	v.IncrementPre()
+	if got := v.String(); got != "1.0.1-beta.3" {
+		t.Fatalf("expected 1.0.1-beta.3, got %q", got)
+	}
+}
+
+func TestIncrementBuild_IncrementsNumericSuffix(t *testing.T) {
+	v := Version{Major: 1, Minor: 0, Patch: 1, PreRelease: "rc.1", Build: "ci.7"}
+	if err := v.IncrementBuild(); err != nil {
+		t.Fatalf("increment build: %v", err)
+	}
+	if got := v.String(); got != "1.0.1-rc.1+ci.8" {
+		t.Fatalf("expected 1.0.1-rc.1+ci.8, got %q", got)
+	}
+}
+
+func TestIncrementBuild_RequiresExistingMetadata(t *testing.T) {
+	v := Version{Major: 1, Minor: 0, Patch: 1}
+	if err := v.IncrementBuild(); err == nil {
+		t.Fatal("expected missing build metadata error")
 	}
 }
 

@@ -30,3 +30,45 @@ func TestValidVersionString(t *testing.T) {
 		})
 	}
 }
+
+func TestValidPrereleaseString(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{"alpha", true},
+		{"alpha.1", true},
+		{"0.3.7", true},
+		{"x-y-z.--", true},
+		{"", false},
+		{"alpha..1", false},
+		{"01", false},
+		{"rc+1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			assert.Equal(t, tt.want, ValidPrereleaseString(tt.value))
+		})
+	}
+}
+
+func TestValidBuildString(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{"001", true},
+		{"exp.sha.5114f85", true},
+		{"21AF26D3----117B344092BD", true},
+		{"", false},
+		{"exp..sha", false},
+		{"build+1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			assert.Equal(t, tt.want, ValidBuildString(tt.value))
+		})
+	}
+}

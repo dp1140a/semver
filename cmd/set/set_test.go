@@ -96,12 +96,48 @@ func TestSetVersion_DryRun(t *testing.T) {
 	})
 }
 
+func TestSetVersion_PreservesExistingVPrefixWhenArgOmitsIt(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "v1.0.0-alpha.3")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"set", "--dry=false", "1.0.0-beta.1"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "v1.0.0-beta.1" {
+			t.Fatalf("expected VERSION=v1.0.0-beta.1, got %q", got)
+		}
+		if !strings.Contains(out, "New Version: v1.0.0-beta.1") {
+			t.Fatalf("unexpected stdout:\n%s", out)
+		}
+	})
+}
+
+func TestSetVersion_ExplicitPrefixCanSwitchStyle(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.0.0-rc.1")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"set", "--dry=false", "v1.0.0"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "v1.0.0" {
+			t.Fatalf("expected VERSION=v1.0.0, got %q", got)
+		}
+		if !strings.Contains(out, "New Version: v1.0.0") {
+			t.Fatalf("unexpected stdout:\n%s", out)
+		}
+	})
+}
+
 func TestSetPre_SetAndClear(t *testing.T) {
 	withTempWD(t, func(tmp string) {
 		writeVERSION(t, "1.2.3")
 		// set pre
 		out := captureStdout(t, func() {
-			cmd.RootCmd.SetArgs([]string{"set", "pre", "--value", "rc.1", "--clear=false", "--dry=false"})
+			cmd.RootCmd.SetArgs([]string{"set", "pre", "rc.1", "--clear=false", "--dry=false"})
 			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("execute: %v", err)
 			}
@@ -131,11 +167,29 @@ func TestSetPre_SetAndClear(t *testing.T) {
 	})
 }
 
+func TestSetPre_PreservesExistingVPrefix(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "v1.0.0-alpha.1")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"set", "pre", "alpha.2", "--clear=false", "--dry=false"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "v1.0.0-alpha.2" {
+			t.Fatalf("expected VERSION=v1.0.0-alpha.2, got %q", got)
+		}
+		if !strings.Contains(out, "New Version: v1.0.0-alpha.2") {
+			t.Fatalf("unexpected stdout:\n%s", out)
+		}
+	})
+}
+
 func TestSetBuild_SetValue(t *testing.T) {
 	withTempWD(t, func(tmp string) {
 		writeVERSION(t, "1.2.3")
 		out := captureStdout(t, func() {
-			cmd.RootCmd.SetArgs([]string{"set", "build", "--value", "exp.7", "--git=false", "--clear=false", "--dry=false"})
+			cmd.RootCmd.SetArgs([]string{"set", "build", "exp.7", "--git=false", "--clear=false", "--dry=false"})
 			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("execute: %v", err)
 			}
@@ -165,6 +219,93 @@ func TestSetBuild_Clear(t *testing.T) {
 		if !strings.Contains(out, "Setting Build Metadata") ||
 			!strings.Contains(out, "New Version: 1.2.3") {
 			t.Fatalf("unexpected stdout:\n%s", out)
+		}
+	})
+}
+
+func TestSetPre_InvalidValueRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2.3")
+		cmd.RootCmd.SetArgs([]string{"set", "pre", "01", "--clear=false", "--dry=false"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected invalid prerelease error")
+		}
+		if !strings.Contains(err.Error(), "invalid prerelease value") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := readVERSION(t); got != "1.2.3" {
+			t.Fatalf("expected VERSION unchanged, got %q", got)
+		}
+	})
+}
+
+func TestSetBuild_InvalidValueRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2.3")
+		cmd.RootCmd.SetArgs([]string{"set", "build", "exp+sha", "--git=false", "--clear=false", "--dry=false"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected invalid build metadata error")
+		}
+		if !strings.Contains(err.Error(), "invalid build metadata") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := readVERSION(t); got != "1.2.3" {
+			t.Fatalf("expected VERSION unchanged, got %q", got)
+		}
+	})
+}
+
+func TestSetVersion_InvalidRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2.3")
+		cmd.RootCmd.SetArgs([]string{"set", "1.2.3-01"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected invalid version error")
+		}
+		if !strings.Contains(err.Error(), "invalid semantic version") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := readVERSION(t); got != "1.2.3" {
+			t.Fatalf("expected VERSION unchanged, got %q", got)
+		}
+	})
+}
+
+func TestSetPre_InvalidVersionFileRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2")
+		cmd.RootCmd.SetArgs([]string{"set", "pre", "rc.1", "--clear=false", "--dry=false"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected invalid VERSION contents error")
+		}
+		if !strings.Contains(err.Error(), "invalid VERSION contents") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestSetPre_ArgumentAndFlagConflictRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2.3")
+		cmd.RootCmd.SetArgs([]string{"set", "pre", "rc.1", "--value=rc.2", "--clear=false", "--dry=false"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected argument/flag conflict")
+		}
+	})
+}
+
+func TestSetBuild_ArgumentAndFlagConflictRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2.3")
+		cmd.RootCmd.SetArgs([]string{"set", "build", "ci.7", "--value=ci.8", "--git=false", "--clear=false", "--dry=false"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected argument/flag conflict")
 		}
 	})
 }
