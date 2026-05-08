@@ -1,0 +1,168 @@
+version: '3'
+
+vars:
+  BIN_NAME: '{{default "semver" .BIN_NAME}}'
+  CMD_PKG: '{{default "." .CMD_PKG}}'
+  DIST: '{{default "dist" .DIST}}'
+  VERSION:
+    sh: tr -d '\r\n' < VERSION 2>/dev/null || echo dev
+  ARCHES: '{{default "amd64 arm64" .ARCHES}}'
+  OSES: '{{default "linux darwin windows" .OSES}}'
+  LDFLAGS: '{{default "-s -w" .LDFLAGS}}'
+  GOFLAGS: '{{default "-trimpath -buildvcs=true" .GOFLAGS}}'
+  CGO_ENABLED: '{{default "0" .CGO_ENABLED}}'
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  all:
+    cmds:
+      - task: build
+
+  deps:
+    desc: Download Go module dependencies
+    cmds:
+      - go mod download
+
+  fmt:
+    desc: Format Go source files
+    cmds:
+      - |
+        echo "gofmt..."
+        ret=0
+        for d in $(go list -f '{{"{{.Dir}}"}}' ./...); do
+          gofmt -l -w "$d"/*.go || ret=$?
+        done
+        exit $ret
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - echo "go vet..."
+      - go vet ./...
+
+  test:
+    desc: Run Go tests
+    cmds:
+      - go test ./...
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - echo "Cleaning {{.DIST}}..."
+      - go clean ./... || true
+      - rm -rf "{{.DIST}}"
+
+  ensure_gox:
+    desc: Ensure gox is installed
+    cmds:
+      - |
+        command -v gox >/dev/null 2>&1 || {
+          echo "Installing gox..."
+          go install github.com/mitchellh/gox@latest
+        }
+
+  build:
+    desc: Build for the current platform
+    deps: [clean, deps, fmt, vet, test]
+    cmds:
+      - mkdir -p "{{.DIST}}"
+      - CGO_ENABLED={{.CGO_ENABLED}} go build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "{{.DIST}}/{{.BIN_NAME}}" {{.CMD_PKG}}
+      - echo "Built {{.DIST}}/{{.BIN_NAME}}"
+
+  dist:
+    desc: Cross-compile and package release artifacts
+    deps: [clean, deps, fmt, vet, test, ensure_gox]
+    cmds:
+      - mkdir -p "{{.DIST}}"
+      - echo ">> Cross-compiling with gox for OS=[{{.OSES}}] ARCH=[{{.ARCHES}}]"
+      - |
+        CGO_ENABLED={{.CGO_ENABLED}} gox \
+          -os="{{.OSES}}" \
+          -arch="{{.ARCHES}}" \
+          -ldflags "{{.LDFLAGS}}" \
+          -output "{{.DIST}}/{{.BIN_NAME}}-{{"{{.OS}}"}}-{{"{{.Arch}}"}}" \
+          {{.CMD_PKG}} || true
+      - |
+        set -e
+        BUILT=0
+        SKIPPED=0
+        for os in {{.OSES}}; do
+          for arch in {{.ARCHES}}; do
+            EXT=$( [ "$os" = "windows" ] && echo ".exe" || echo "" )
+            OUT="{{.BIN_NAME}}-${os}-${arch}${EXT}"
+            if [ ! -f "{{.DIST}}/$OUT" ]; then
+              echo "⚠️  Skipping ${os}/${arch} (no artifact produced; not an error)"
+              SKIPPED=$((SKIPPED+1))
+              continue
+            fi
+            PKG="{{.BIN_NAME}}_{{.VERSION}}_${os}_${arch}"
+            echo ">> Packaging $PKG"
+            mkdir -p "{{.DIST}}/$PKG"
+            mv "{{.DIST}}/$OUT" "{{.DIST}}/$PKG/{{.BIN_NAME}}${EXT}"
+            [ -f README.md ] && cp README.md "{{.DIST}}/$PKG/" || true
+            [ -f LICENSE ] && cp LICENSE "{{.DIST}}/$PKG/" || true
+            if [ "$os" = "windows" ]; then
+              (cd "{{.DIST}}" && zip -qr "$PKG.zip" "$PKG")
+            else
+              (cd "{{.DIST}}" && tar -czf "$PKG.tar.gz" "$PKG")
+            fi
+            rm -rf "{{.DIST}}/$PKG"
+            BUILT=$((BUILT+1))
+          done
+        done
+        echo "Packaged $BUILT target(s); skipped $SKIPPED."
+      - task: checksum
+      - |
+        echo ""
+        count=$(find "{{.DIST}}" -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l | tr -d '[:space:]')
+        if [ "$count" -gt 0 ]; then
+          echo "✅ Success: built $count artifact(s) for version {{.VERSION}}"
+          echo "   Output directory: {{.DIST}}/"
+          find "{{.DIST}}" -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) -print | sed 's/^/   - /'
+          if [ -f "{{.DIST}}/{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt" ]; then
+            echo "   Checksums: {{.DIST}}/{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt"
+          fi
+          echo '   Upload with: gh release upload "{{.VERSION}}" {{.DIST}}/* --clobber'
+          echo ""
+        else
+          echo "❌ No artifacts were produced. See logs above."
+          exit 1
+        fi
+
+  checksum:
+    desc: Generate SHA256 checksums for packaged artifacts
+    cmds:
+      - |
+        cd "{{.DIST}}"
+        if command -v shasum >/dev/null 2>&1; then
+          : > "{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt"
+          for f in *.tar.gz *.zip; do [ -e "$f" ] && shasum -a 256 "$f" >> "{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt"; done
+        elif command -v sha256sum >/dev/null 2>&1; then
+          : > "{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt"
+          for f in *.tar.gz *.zip; do [ -e "$f" ] && sha256sum "$f" >> "{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt"; done
+        else
+          echo "No shasum/sha256sum found; skipping checksums"
+        fi
+        echo "Checksums: {{.DIST}}/{{.BIN_NAME}}_{{.VERSION}}_SHA256SUMS.txt"
+
+  release:
+    desc: Upload dist artifacts to the GitHub release for VERSION
+    cmds:
+      - gh release upload "{{.VERSION}}" {{.DIST}}/* --clobber
+      - gh release view "{{.VERSION}}"
+
+  debug:
+    desc: Print resolved task variables
+    cmds:
+      - echo "BIN_NAME={{.BIN_NAME}}"
+      - echo "CMD_PKG={{.CMD_PKG}}"
+      - echo "DIST={{.DIST}}"
+      - echo "VERSION={{.VERSION}}"
+      - echo "ARCHES={{.ARCHES}}"
+      - echo "OSES={{.OSES}}"
+      - echo "LDFLAGS={{.LDFLAGS}}"
+      - echo "GOFLAGS={{.GOFLAGS}}"
+      - echo "CGO_ENABLED={{.CGO_ENABLED}}"

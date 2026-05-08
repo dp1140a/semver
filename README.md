@@ -21,6 +21,18 @@ Check if the semver was installed running the command:
 semver 
 ```
 
+### task runner
+This repo also includes a [Task](https://taskfile.dev/) configuration in `Taskfile.yml`.
+
+Common commands:
+
+```sh
+task build
+task test
+task dist
+task release
+```
+
 ## Usage:
 ### semver [subcommand]
 Run by itself semver will return the current version string. For example if the current version is ```1.2.3```:

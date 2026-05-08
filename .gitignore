@@ -33,3 +33,4 @@ reports/*
 .vscode/*
 /Releases.md
 /scripts/
+.gitflow-release
