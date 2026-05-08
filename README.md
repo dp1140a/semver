@@ -3,6 +3,8 @@
 Yet another semantic versioning tool written in golang that follows the [Semver v2 Spec](https://semver.org/)
 I wrote this cause it follows how I like to use these tools: less flags and more subcommands that make sense.
 
+The tool accepts both canonical SemVer strings like `1.0.0-rc.1` and the common `v`-prefixed form like `v1.0.0-rc.1`. The leading `v` is treated as optional compatibility syntax rather than part of the SemVer spec. When mutating an existing `VERSION` file, `semver` preserves the file's current prefix style unless you explicitly provide a full replacement version with a different style.
+
 ## Getting Started
 
 ### Install
@@ -86,8 +88,10 @@ semver bump [command]
 
 Available Commands:
 major       Will bump the current Major version
+build       Will bump the current Build metadata
 minor       Will bump the current Minor version
 patch       Will bump the current Patch version
+pre         Will bump the current Prerelease
 
 <br/>
 
@@ -138,6 +142,74 @@ Bumping will reset all lower order versions to 0 and remove build or pre-release
 Usage:
 ```semver bump patch```
 
+<br/>
+
+#### bump pre
+`bump pre` means "create the next prerelease cut within the current prerelease stream."
+
+If there is no prerelease yet, it starts one at `alpha.1`:
+
+```text
+$ semver bump pre
+1.0.1 --> 1.0.1-alpha.1
+```
+
+If there is already a prerelease with a numeric tail, it increments that tail and keeps the current stage:
+
+```text
+$ semver bump pre
+1.0.1-alpha.1 --> 1.0.1-alpha.2
+
+$ semver bump pre
+1.0.1-beta.1 --> 1.0.1-beta.2
+
+$ semver bump pre
+1.0.1-rc.2 --> 1.0.1-rc.3
+```
+
+If build metadata exists, `bump pre` removes it because a new prerelease cut is being created:
+
+```text
+$ semver bump pre
+1.0.1-beta.2+ci.7 --> 1.0.1-beta.3
+```
+
+`bump pre` does not promote stages. To move between prerelease stages, use `set pre` explicitly:
+
+```text
+$ semver set pre beta.1
+1.0.1-alpha.2 --> 1.0.1-beta.1
+
+$ semver set pre rc.1
+1.0.1-beta.4 --> 1.0.1-rc.1
+```
+
+Usage:
+```semver bump pre```
+
+<br/>
+
+#### bump build
+`bump build` increments existing build metadata. It does not invent a build label when one does not already exist.
+
+```text
+$ semver bump build
+1.0.1+build.7 --> 1.0.1+build.8
+
+$ semver bump build
+1.0.1-rc.1+ci.7 --> 1.0.1-rc.1+ci.8
+```
+
+If no build metadata exists, `bump build` returns an error. Use `set build` first.
+
+```text
+$ semver set build ci.1
+1.0.1 --> 1.0.1+ci.1
+```
+
+Usage:
+```semver bump build```
+
 ---
 
 ### Set
@@ -171,6 +243,30 @@ For example if the current version is 1.2.3:
 
 ```$ semver set build --> 1.2.3+b113571 ```(if that was the current hash)
 
+Build metadata is useful when you want extra release information that should not change SemVer precedence, such as:
+
+- CI run numbers
+- git SHAs
+- packaging revisions
+- internal build identifiers
+
+Examples:
+
+```text
+$ semver set build ci.42
+1.0.1 --> 1.0.1+ci.42
+
+$ semver set build sha.abc1234
+1.0.1-rc.1 --> 1.0.1-rc.1+sha.abc1234
+```
+
+Because build metadata does not affect SemVer precedence, these have the same precedence:
+
+```text
+1.0.1+ci.42
+1.0.1+ci.99
+```
+
 Usage:
 ```semver set build [(optional) build value]```
 
@@ -181,23 +277,90 @@ Will set the pre-release on a version.  For example if the current version is 1.
 
 ``$ semver set pre alpha-123 --> 1.2.3-alpha-123``
 
-If no pre string argument is given it will set the pre-release accordingly:
-If no pre-release value will set to alpha.  For example if the current version is 1.2.3
+Prerelease identifiers are useful when you are cutting versions that are not yet final and should sort before the final release:
 
-```$ semver set pre --> 1.2.3-alpha```
+- `alpha` for earliest internal or limited testing
+- `beta` for broader testing and stabilization
+- `rc` for release candidates
 
-If pre-release value is alpha will set to beta.  For example if the current version is 1.2.3-alpha
+Examples:
 
-```$ semver set pre --> 1.2.3-beta```
+```text
+$ semver set pre alpha.1
+1.0.1 --> 1.0.1-alpha.1
 
-If pre-release value is beta will set to rc1.0.  For example if the current version is 1.2.3-beta
+$ semver set pre beta.1
+1.0.1-alpha.3 --> 1.0.1-beta.1
 
-```$ semver set pre --> 1.2.3-rc1.0```
+$ semver set pre rc.1
+1.0.1-beta.2 --> 1.0.1-rc.1
+```
 
-NOTE: Setting the pre-release value WILL delete the current build value since pre-release is a higher precedence.
+Prerelease precedence is lower than the final release, and the common progression is:
+
+```text
+alpha --> beta --> rc --> final
+```
+
+For example:
+
+```text
+1.0.1-alpha.1 < 1.0.1-alpha.2 < 1.0.1-beta.1 < 1.0.1-rc.1 < 1.0.1
+```
+
+Stage changes are explicit with `set pre`. They are not automatic in `bump pre`.
+
+Common workflows:
+
+```text
+$ semver bump patch
+1.0.0 --> 1.0.1
+
+$ semver bump pre
+1.0.1 --> 1.0.1-alpha.1
+
+$ semver bump pre
+1.0.1-alpha.1 --> 1.0.1-alpha.2
+
+$ semver set pre beta.1
+1.0.1-alpha.2 --> 1.0.1-beta.1
+
+$ semver bump pre
+1.0.1-beta.1 --> 1.0.1-beta.2
+
+$ semver set pre rc.1
+1.0.1-beta.2 --> 1.0.1-rc.1
+
+$ semver set 1.0.1
+1.0.1-rc.1 --> 1.0.1
+```
 
 Usage:
 ```semver set pre [(optional) pre-release value]```
+
+Typical prerelease progression examples:
+
+```text
+v1.0.0-alpha.1
+v1.0.0-alpha.2
+v1.0.0-alpha.3
+v1.0.0-beta.1
+v1.0.0-rc.1
+v1.0.0-rc.2
+v1.0.0
+```
+
+The same progression is also valid without the leading `v`:
+
+```text
+1.0.0-alpha.1
+1.0.0-alpha.2
+1.0.0-alpha.3
+1.0.0-beta.1
+1.0.0-rc.1
+1.0.0-rc.2
+1.0.0
+```
 
 ---
 ### Version

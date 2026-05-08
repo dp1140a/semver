@@ -14,7 +14,7 @@ import (
 var SetCmd = &cobra.Command{
 	Use:   "set <version>",
 	Short: "Set the full semantic version",
-	Long:  "Set the semantic version in the VERSION file (e.g., 1.2.3 or 1.2.3-rc.1+build.5).",
+	Long:  "Set the semantic version in the VERSION file (e.g., 1.2.3, 1.2.3-rc.1+build.5, or v1.2.3-rc.1). If the provided version omits a leading v/V, the existing VERSION file style is preserved.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(c *cobra.Command, args []string) error {
 		verArg := strings.TrimSpace(args[0])
@@ -46,7 +46,18 @@ func runSetVersion(cmd *cobra.Command, verArg string) error {
 	fmt.Printf("Current Version: %s\n", cur)
 	fmt.Println("Setting Version")
 
-	v := types.NewVersionFromString(verArg)
+	curVersion, err := types.ParseVersion(cur)
+	if err != nil {
+		return fmt.Errorf("invalid VERSION contents %q", cur)
+	}
+
+	v, err := types.ParseVersion(verArg)
+	if err != nil {
+		return fmt.Errorf("invalid semantic version %q", verArg)
+	}
+	if v.Prefix() == "" {
+		v.SetPrefix(curVersion.Prefix())
+	}
 	next := v.String()
 
 	if dry {

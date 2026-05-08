@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dp1140a/semver/cmd"
-	"github.com/dp1140a/semver/pkg/version/version"
+	"github.com/dp1140a/semver/pkg/version"
 	"github.com/spf13/cobra"
 )
 

@@ -171,6 +171,92 @@ func TestBump_DefaultIsPatch(t *testing.T) {
 	})
 }
 
+func TestBumpPre_FromReleaseStartsAlpha1(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.0.1")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"bump", "pre"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "1.0.1-alpha.1" {
+			t.Fatalf("expected VERSION=1.0.1-alpha.1, got %q", got)
+		}
+		if !strings.Contains(out, "Bumping Prerelease") || !strings.Contains(out, "New Version: 1.0.1-alpha.1") {
+			t.Fatalf("stdout missing expected lines:\n%s", out)
+		}
+	})
+}
+
+func TestBumpPre_IncrementsWithinCurrentStage(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.0.1-beta.2+ci.7")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"bump", "pre"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "1.0.1-beta.3" {
+			t.Fatalf("expected VERSION=1.0.1-beta.3, got %q", got)
+		}
+		if !strings.Contains(out, "Bumping Prerelease") || !strings.Contains(out, "New Version: 1.0.1-beta.3") {
+			t.Fatalf("stdout missing expected lines:\n%s", out)
+		}
+	})
+}
+
+func TestBumpPre_PreservesExistingVPrefix(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "v1.0.1-rc.2")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"bump", "pre"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "v1.0.1-rc.3" {
+			t.Fatalf("expected VERSION=v1.0.1-rc.3, got %q", got)
+		}
+		if !strings.Contains(out, "New Version: v1.0.1-rc.3") {
+			t.Fatalf("stdout missing expected lines:\n%s", out)
+		}
+	})
+}
+
+func TestBumpBuild_IncrementsExistingMetadata(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.0.1-rc.1+ci.7")
+		out := captureStdout(t, func() {
+			cmd.RootCmd.SetArgs([]string{"bump", "build"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+		})
+		if got := readVERSION(t); got != "1.0.1-rc.1+ci.8" {
+			t.Fatalf("expected VERSION=1.0.1-rc.1+ci.8, got %q", got)
+		}
+		if !strings.Contains(out, "Bumping Build Metadata") || !strings.Contains(out, "New Version: 1.0.1-rc.1+ci.8") {
+			t.Fatalf("stdout missing expected lines:\n%s", out)
+		}
+	})
+}
+
+func TestBumpBuild_RequiresExistingMetadata(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.0.1")
+		cmd.RootCmd.SetArgs([]string{"bump", "build"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected missing build metadata error")
+		}
+		if got := readVERSION(t); got != "1.0.1" {
+			t.Fatalf("expected VERSION unchanged, got %q", got)
+		}
+	})
+}
+
 func TestBump_DryRunDoesNotWrite(t *testing.T) {
 	withTempWD(t, func(tmp string) {
 		writeVERSION(t, "1.2.3")
@@ -221,6 +307,23 @@ func TestBump_NoVersionFile_GracefulMessage(t *testing.T) {
 		})
 		if !strings.Contains(out, "No VERSION file found") {
 			t.Fatalf("expected helpful message, got:\n%s", out)
+		}
+	})
+}
+
+func TestBump_InvalidVersionFileRejected(t *testing.T) {
+	withTempWD(t, func(tmp string) {
+		writeVERSION(t, "1.2")
+		cmd.RootCmd.SetArgs([]string{"bump", "patch"})
+		err := cmd.RootCmd.Execute()
+		if err == nil {
+			t.Fatal("expected invalid VERSION contents error")
+		}
+		if !strings.Contains(err.Error(), "invalid VERSION contents") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := readVERSION(t); got != "1.2" {
+			t.Fatalf("expected VERSION unchanged, got %q", got)
 		}
 	})
 }

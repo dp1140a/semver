@@ -50,7 +50,11 @@ func runVersion(format string) {
 	}
 
 	versionStr := strings.TrimSpace(string(CUR_VER)) // <-- key fix
-	v := types.NewVersionFromString(versionStr)
+	v, err := types.ParseVersion(versionStr)
+	if err != nil {
+		fmt.Printf("Invalid VERSION file contents %q. Must be a valid semantic version.\n", versionStr)
+		os.Exit(1)
+	}
 
 	switch strings.ToLower(format) {
 	case "string":
